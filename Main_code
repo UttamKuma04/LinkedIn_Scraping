@@ -1,0 +1,87 @@
+from selenium import webdriver
+from selenium.webdriver.common.by import By
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
+import pandas as pd
+import time
+
+# Initialize the WebDriver
+driver = webdriver.Chrome()
+
+# Base URL for LinkedIn job search
+base_url = "https://in.linkedin.com/jobs/python-internship-jobs?keywords=Python%20Internship&location=India&geoId=102713980&f_TPR=r86400&position=1&pageNum={}" 
+job_titles = []
+job_locations = []
+job_links = []
+# Loop through page numbers (from 0 to 9 for 10 pages)
+for page_num in range(3):
+    print(f"Scraping page {page_num + 1}...")
+    # Construct the URL with the current page number
+    url = base_url.format(page_num)
+    driver.get(url)
+
+    try:
+        # Wait for job titles to load
+        job_titles_page = WebDriverWait(driver, 10).until(
+            EC.presence_of_all_elements_located((By.CLASS_NAME, "base-search-card__title"))
+        )
+
+        # Wait for locations to load
+        job_locations_page = WebDriverWait(driver, 10).until(
+            EC.presence_of_all_elements_located((By.CLASS_NAME, "job-search-card__location"))
+        )
+
+        # Wait for job links to load
+        job_links_page = WebDriverWait(driver, 10).until(
+            EC.presence_of_all_elements_located((By.CSS_SELECTOR, "a.base-card__full-link"))
+        )
+
+        # Log the lengths of data from the current page
+        print(f"Page {page_num + 1} - Titles: {len(job_titles_page)}, Locations: {len(job_locations_page)}, Links: {len(job_links_page)}")
+
+        # Ensure all lists have the same length by trimming or padding with None
+        max_length = max(len(job_titles_page), len(job_locations_page), len(job_links_page))
+        
+        # If there are missing elements, pad with None
+        job_titles_page += [None] * (max_length - len(job_titles_page))
+        job_locations_page += [None] * (max_length - len(job_locations_page))
+        job_links_page += [None] * (max_length - len(job_links_page))
+
+        # Append the job details for this page to the lists
+        job_titles.extend([title.text for title in job_titles_page])
+        job_locations.extend([location.text for location in job_locations_page])
+        job_links.extend([link.get_attribute("href") for link in job_links_page])
+
+        print(f"Page {page_num + 1} scraped successfully.")
+
+    except Exception as e:
+        print(f"An error occurred on page {page_num + 1}: {e}")
+        continue
+
+    # Wait for a few seconds before scraping the next page
+    time.sleep(3)
+
+# After scraping all pages, organize the data into a pandas DataFrame
+job_data = {
+    "Job Title": job_titles,
+    "Location": job_locations,
+    "Link": job_links
+}
+
+# Ensure all lists have the same length
+min_length = min(len(job_titles), len(job_locations), len(job_links))
+job_titles = job_titles[:min_length]
+job_locations = job_locations[:min_length]
+job_links = job_links[:min_length]
+
+# Create the DataFrame
+df = pd.DataFrame(job_data)
+
+# Save the data to a CSV file
+df.to_csv("linkedin_jobs_multi_page.csv", index=False, encoding="utf-8")
+
+print("Data from 10 pages has been organized and saved to 'linkedin_jobs_multi_page.csv'.")
+
+# Close the browser
+driver.quit ()
+ 
